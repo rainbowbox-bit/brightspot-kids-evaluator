@@ -24,14 +24,513 @@
   <div id="root"></div>
   <noscript><div style="padding:2rem;text-align:center;color:#78716c;">此應用需要啟用 JavaScript 才能執行。</div></noscript>
   <script type="text/babel">
-    const App = () => (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-stone-400 text-lg">載入中...</p>
-      </div>
-    );
+    // === Lucide 圖示解構 ===
+    const {
+      Star, Heart, AlertTriangle, FileText, Check, PenTool, Edit3,
+      ChevronRight, ChevronDown, ChevronUp, Sparkles, Copy, RefreshCw,
+      User, School, Plus, X, AlertCircle, Save, Trash2, List,
+      Mic, MicOff, History, Clock, Upload, Settings, Eye, EyeOff
+    } = LucideReact;
+
+    // === localStorage 安全操作 ===
+    const safeLocalStorageGet = (key, fallback) => {
+      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+      catch { return fallback; }
+    };
+    const safeLocalStorageSet = (key, value) => {
+      try { localStorage.setItem(key, JSON.stringify(value)); }
+      catch (e) { console.warn('localStorage 寫入失敗', e); }
+    };
+
+    // === 常數資料 ===
+    const tagOptions = {
+      strengthTraits: ['樂觀開朗', '體貼助人', '充滿好奇', '堅持不懈', '富責任感', '細心謹慎', '主動積極', '具有幽默感'],
+      weaknessTraits: ['較為害羞', '容易挫折', '缺乏自信', '情緒起伏大', '依賴性強', '急躁', '固執'],
+      strengthAbilities: ['邏輯清晰', '口語表達流暢', '肢體協調佳', '觀察力敏銳', '創意豐富', '專注力高', '生活自理強'],
+      weaknessAbilities: ['手眼協調待加強', '專注力較短', '聽指令需重複', '精細動作較弱', '空間概念模糊']
+    };
+    const commonLearningAreas = ['積木區', '扮演區', '美勞區', '益智區', '語文區', '生活自理區', '組合建構區', '種植區', '自然觀察區', '數學區'];
+    const gradeOptions = ['幼幼班', '小班', '中班', '大班'];
+
+    // === 工具函式 ===
+    const cleanTerm = (text) => {
+      if (!text) return "";
+      let cleaned = text.replace(/[-_~.=]{2,}/g, '');
+      cleaned = cleaned.replace(/^(能|能夠|會|可以|主動|願意|喜愛|喜歡)/, '');
+      cleaned = cleaned.replace(/^(在引導下|在協助下|在老師協助下)/, '');
+      cleaned = cleaned.replace(/[•●★◆■➤]/g, '');
+      return cleaned.trim();
+    };
+
+    const extractAssessmentItems = (text) => {
+      const lines = text.split('\n');
+      const items = { stars: [], circles: [], triangles: [] };
+      const ratingKeywords = ['一級棒', '很不錯', '加加油', '很棒', '加油', '待加強', '優', '佳', '尚可', '通過', '精熟', '發展中'];
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line || line.length < 2) continue;
+        let type = null;
+        if (line.includes('☆')) type = 'stars';
+        else if (line.includes('○')) type = 'circles';
+        else if (line.includes('△')) type = 'triangles';
+        if (type) {
+          let content = line.replace(/[\(（]?[☆○△][\)）]?/g, '').trim();
+          content = content.replace(/^[\d(（][\d.)）]、?\s*/, '');
+          ratingKeywords.forEach(keyword => {
+            const regex = new RegExp(keyword, 'g');
+            content = content.replace(regex, '').trim();
+          });
+          content = cleanTerm(content);
+          if (content.length === 0) {
+            let prevIndex = i - 1;
+            while (prevIndex >= 0) {
+              let prevLine = lines[prevIndex].trim();
+              if (prevLine && prevLine.length >= 2 && !prevLine.includes('☆') && !prevLine.includes('○') && !prevLine.includes('△')) {
+                let prevContent = prevLine.replace(/^[\d(（][\d.)）]、?\s*/, '').trim();
+                prevContent = cleanTerm(prevContent);
+                if (/[a-zA-Z\u4e00-\u9fa5]/.test(prevContent) && prevContent.length > 1 && prevContent.length < 20) {
+                  items[type].push(prevContent);
+                }
+                break;
+              }
+              prevIndex--;
+              if (i - prevIndex > 3) break;
+            }
+          } else {
+            const colonIndex = content.lastIndexOf('：');
+            const halfColonIndex = content.lastIndexOf(':');
+            const splitIndex = Math.max(colonIndex, halfColonIndex);
+            let finalContent = content;
+            if (splitIndex !== -1) {
+              const beforeColon = content.substring(0, splitIndex).trim();
+              const afterColon = content.substring(splitIndex + 1).trim();
+              const cleanAfter = cleanTerm(afterColon);
+              const cleanBefore = cleanTerm(beforeColon);
+              if (cleanAfter.length > 0 && cleanAfter.length <= 12) {
+                finalContent = cleanAfter;
+              } else if (cleanBefore.length > 0) {
+                finalContent = cleanBefore;
+              }
+            } else {
+              finalContent = cleanTerm(content);
+            }
+            if (/[a-zA-Z\u4e00-\u9fa5]/.test(finalContent) && finalContent.length > 1 && finalContent.length < 15) {
+              items[type].push(finalContent);
+            }
+          }
+        }
+      }
+      return items;
+    };
+
+    const analyzeSymbols = (text) => {
+      if (!text) return { star: 0, circle: 0, triangle: 0 };
+      return {
+        star: (text.match(/☆/g) || []).length,
+        circle: (text.match(/○/g) || []).length,
+        triangle: (text.match(/△/g) || []).length
+      };
+    };
+
+    const getRandomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    const getName = (fullName) => {
+      if (!fullName) return '孩子';
+      return fullName.trim().length <= 2 ? fullName.trim() : fullName.trim().slice(-2);
+    };
+
+    // === 主元件 ===
+    const StarChildCommentGenerator = () => {
+      const [step, setStep] = React.useState(1);
+      const [isDragging, setIsDragging] = React.useState(false);
+      const [isLoaded, setIsLoaded] = React.useState(false);
+      const [isListening, setIsListening] = React.useState(false);
+      const [showHistory, setShowHistory] = React.useState(false);
+      const recognitionRef = React.useRef(null);
+
+      const [childInfo, setChildInfo] = React.useState({ name: '', grade: '', gender: '' });
+      const [assessmentContent, setAssessmentContent] = React.useState('');
+      const [analysis, setAnalysis] = React.useState({ star: 0, circle: 0, triangle: 0 });
+      const [parsedItems, setParsedItems] = React.useState({ stars: [], circles: [], triangles: [] });
+      const [selectedTags, setSelectedTags] = React.useState({ strengthTraits: [], weaknessTraits: [], strengthAbilities: [], weaknessAbilities: [] });
+      const [customTagLibrary, setCustomTagLibrary] = React.useState({ strengthTraits: [], weaknessTraits: [], strengthAbilities: [], weaknessAbilities: [] });
+      const [customInputs, setCustomInputs] = React.useState({ strengthTraits: '', weaknessTraits: '', strengthAbilities: '', weaknessAbilities: '' });
+      const [learningAreaInfo, setLearningAreaInfo] = React.useState({ often: '', oftenItems: '', less: '' });
+      const [anecdote, setAnecdote] = React.useState('');
+      const [generatedComment, setGeneratedComment] = React.useState('');
+      const [isGenerating, setIsGenerating] = React.useState(false);
+      const [historyLog, setHistoryLog] = React.useState([]);
+
+      // === localStorage 讀取 useEffect ===
+      React.useEffect(() => {
+        const savedData = safeLocalStorageGet('star_child_data', null);
+        if (savedData) {
+          if (savedData.childInfo) setChildInfo(savedData.childInfo);
+          if (savedData.assessmentContent) {
+            setAssessmentContent(savedData.assessmentContent);
+            setAnalysis(analyzeSymbols(savedData.assessmentContent));
+          }
+          if (savedData.parsedItems) setParsedItems(savedData.parsedItems);
+          if (savedData.selectedTags) setSelectedTags(savedData.selectedTags);
+          if (savedData.learningAreaInfo) setLearningAreaInfo(savedData.learningAreaInfo);
+          if (savedData.anecdote) setAnecdote(savedData.anecdote);
+          if (savedData.step) setStep(savedData.step);
+        }
+        setCustomTagLibrary(safeLocalStorageGet('star_child_tag_library', { strengthTraits: [], weaknessTraits: [], strengthAbilities: [], weaknessAbilities: [] }));
+        setHistoryLog(safeLocalStorageGet('star_child_history', []));
+        setIsLoaded(true);
+      }, []);
+
+      // === localStorage 寫入 useEffect ===
+      React.useEffect(() => {
+        if (!isLoaded) return;
+        safeLocalStorageSet('star_child_data', {
+          childInfo, assessmentContent, parsedItems, selectedTags, learningAreaInfo, anecdote, step
+        });
+      }, [childInfo, assessmentContent, parsedItems, selectedTags, learningAreaInfo, anecdote, step, isLoaded]);
+
+      // === 事件處理函式 ===
+      const handleContentChange = (e) => {
+        const text = e.target.value;
+        setAssessmentContent(text);
+        setAnalysis(analyzeSymbols(text));
+      };
+
+      const handleAnalyzeAndNext = () => {
+        const extracted = extractAssessmentItems(assessmentContent);
+        setParsedItems(extracted);
+        setStep(2);
+      };
+
+      const handleReset = () => {
+        if (!window.confirm('確定要開始評量下一位學生嗎？\n目前的輸入內容將會被清空，但「自訂標籤庫」與「歷史紀錄」會保留。')) return;
+        setChildInfo({ name: '', grade: childInfo.grade, gender: '' });
+        setAssessmentContent('');
+        setAnalysis({ star: 0, circle: 0, triangle: 0 });
+        setParsedItems({ stars: [], circles: [], triangles: [] });
+        setSelectedTags({ strengthTraits: [], weaknessTraits: [], strengthAbilities: [], weaknessAbilities: [] });
+        setCustomInputs({ strengthTraits: '', weaknessTraits: '', strengthAbilities: '', weaknessAbilities: '' });
+        setLearningAreaInfo({ often: '', oftenItems: '', less: '' });
+        setAnecdote('');
+        setGeneratedComment('');
+        setStep(1);
+        localStorage.removeItem('star_child_data');
+      };
+
+      const updateParsedItem = (type, index, value) => {
+        const newItems = { ...parsedItems };
+        newItems[type][index] = value;
+        setParsedItems(newItems);
+      };
+
+      const removeParsedItem = (type, index) => {
+        const newItems = { ...parsedItems };
+        newItems[type] = newItems[type].filter((_, i) => i !== index);
+        setParsedItems(newItems);
+      };
+
+      const addParsedItem = (type) => {
+        const newItems = { ...parsedItems };
+        newItems[type].push('');
+        setParsedItems(newItems);
+      };
+
+      const toggleLearningArea = (field, area) => {
+        let items = (learningAreaInfo[field] || '').split(/[,、]+/).map(s => s.trim()).filter(Boolean);
+        if (items.includes(area)) {
+          items = items.filter(i => i !== area);
+        } else {
+          items.push(area);
+        }
+        setLearningAreaInfo({ ...learningAreaInfo, [field]: items.join('、') });
+      };
+
+      const toggleTag = (category, tag) => {
+        setSelectedTags(prev => {
+          const current = prev[category];
+          if (current.includes(tag)) return { ...prev, [category]: current.filter(t => t !== tag) };
+          return { ...prev, [category]: [...current, tag] };
+        });
+      };
+
+      const addCustomTag = (category) => {
+        const val = customInputs[category].trim();
+        if (!val) return;
+        if (!selectedTags[category].includes(val)) {
+          setSelectedTags(prev => ({ ...prev, [category]: [...prev[category], val] }));
+        }
+        if (!tagOptions[category].includes(val) && !customTagLibrary[category].includes(val)) {
+          const newLibrary = { ...customTagLibrary, [category]: [...customTagLibrary[category], val] };
+          setCustomTagLibrary(newLibrary);
+          safeLocalStorageSet('star_child_tag_library', newLibrary);
+        }
+        setCustomInputs(prev => ({ ...prev, [category]: '' }));
+      };
+
+      const removeCustomTagFromLibrary = (e, category, tag) => {
+        e.stopPropagation();
+        if (window.confirm(`確定刪除常用標籤「${tag}」？`)) {
+          const newLibrary = { ...customTagLibrary, [category]: customTagLibrary[category].filter(t => t !== tag) };
+          setCustomTagLibrary(newLibrary);
+          safeLocalStorageSet('star_child_tag_library', newLibrary);
+          if (selectedTags[category].includes(tag)) {
+            setSelectedTags(prev => ({ ...prev, [category]: prev[category].filter(t => t !== tag) }));
+          }
+        }
+      };
+
+      const handleKeyDown = (e, category) => {
+        if (e.key === 'Enter') { e.preventDefault(); addCustomTag(category); }
+      };
+
+      const getPronoun = () => childInfo.gender === 'female' ? '她' : '他';
+
+      const processFile = (file) => {
+        if (!file) return;
+        const fileName = file.name.toLowerCase();
+        if (fileName.endsWith('.docx')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (window.mammoth) {
+              window.mammoth.extractRawText({ arrayBuffer: event.target.result })
+                .then((result) => {
+                  setAssessmentContent(result.value);
+                  setAnalysis(analyzeSymbols(result.value));
+                })
+                .catch(() => alert('Word 解析失敗'));
+            } else {
+              alert('系統元件載入中，請稍後再試！');
+            }
+          };
+          reader.readAsArrayBuffer(file);
+          return;
+        }
+        if (fileName.endsWith('.doc')) {
+          alert('不支援舊版 Word (.doc)，請使用 .docx 或文字檔。');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target.result) {
+            setAssessmentContent(e.target.result);
+            setAnalysis(analyzeSymbols(e.target.result));
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      const handleFileUpload = (e) => processFile(e.target.files[0]);
+      const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+      const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+      const handleDrop = (e) => {
+        e.preventDefault(); setIsDragging(false);
+        if (e.dataTransfer.files.length > 0) {
+          processFile(e.dataTransfer.files[0]);
+          e.dataTransfer.clearData();
+        }
+      };
+
+      const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        alert('已複製到剪貼簿');
+      };
+
+      const toggleVoiceInput = () => {
+        if (isListening) {
+          if (recognitionRef.current) recognitionRef.current.stop();
+          setIsListening(false);
+          return;
+        }
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert('您的瀏覽器不支援語音輸入功能，請使用 Google Chrome 或 Edge 瀏覽器。');
+          return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'zh-TW';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onerror = () => setIsListening(false);
+        recognition.onresult = (event) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+          }
+          if (finalTranscript) setAnecdote(prev => prev + finalTranscript);
+        };
+        recognitionRef.current = recognition;
+        recognition.start();
+      };
+
+      const saveToHistory = (comment) => {
+        const newEntry = {
+          id: Date.now(),
+          name: getName(childInfo.name),
+          grade: childInfo.grade,
+          gender: childInfo.gender,
+          comment,
+          timestamp: new Date().toLocaleString()
+        };
+        const newHistory = [newEntry, ...historyLog].slice(0, 10);
+        setHistoryLog(newHistory);
+        safeLocalStorageSet('star_child_history', newHistory);
+      };
+
+      // === 模板評語生成函式 ===
+      const generateTemplateComment = () => {
+        const { star, circle, triangle } = analysis;
+        const total = star + circle + triangle || 1;
+        const heShe = getPronoun();
+        const name = getName(childInfo.name);
+        const isYounger = ['幼幼班', '小班'].includes(childInfo.grade);
+
+        // --- 開場白 ---
+        let introList = [];
+        if (star / total > 0.6) {
+          if (isYounger) {
+            introList = [
+              `這學期，我看見了${name}如同小星星般閃耀的成長。${heShe}在適應環境與感官探索上，都展現了令人驚喜的穩定度。`,
+              `看著${name}每天快樂地踏入教室，那是老師最開心的時候。這學期${heShe}在各方面的進步，讓我們看見了${heShe}內在的小宇宙。`
+            ];
+          } else {
+            introList = [
+              `在這學期的學習旅程中，${name}如同繁星般閃耀。${heShe}在團隊合作與邏輯思考上的表現，展現了令人驚艷的自信與成熟。`,
+              `隨著學期的推進，${name}展現了豐沛的創造力與領導潛質，每一個小成就都累積成令人感動的成長軌跡。`
+            ];
+          }
+        } else if (triangle / total > 0.3) {
+          if (isYounger) {
+            introList = [`這學期，我們陪著${name}跨越了許多分離焦慮與新挑戰。雖然步伐小小的，但${heShe}眼裡的光芒從未熄滅，那份願意嘗試的心最珍貴。`];
+          } else {
+            introList = [`在團體生活中，${name}就像一顆正在扎根的大樹，我們看見了${heShe}面對挫折時的韌性，也欣賞${heShe}努力克服困難的姿態。`];
+          }
+        } else {
+          introList = [`這學期${name}的成長如同溫暖的陽光，不疾不徐地綻放。在日常的生活作息與遊戲中，我們見證了${heShe}許多美好的轉變。`];
+        }
+        const intro = getRandomItem(introList);
+
+        // --- 能力分析 ---
+        let abilityAnalysis = "\n\n從總結性評量來看，我們發現了許多值得肯定的地方。\n\n";
+        let starTemplates, circleTemplates, triangleTemplates;
+        if (isYounger) {
+          starTemplates = [
+            (item) => `提到「${item}」，這是${name}最自信的時刻。看著${heShe}專注探索的小臉龐，我們深深感受到${heShe}對這個世界的好奇與熱情。`,
+            (item) => `${name}在操作「${item}」時動作協調，小手越來越靈活，能自信地完成動作，展現了極佳的感官發展。`,
+            (item) => `關於「${item}」，${name}已經能嘗試自己動手做，那份堅持想要『自己來』的模樣，展現了良好的生活自理萌芽。`,
+            (item) => `我們特別喜歡看${name}進行「${item}」，${heShe}總是笑得燦爛，肢體動作充滿了活力，享受在遊戲中的每一刻。`
+          ];
+          circleTemplates = [
+            (item) => `至於「${item}」，${name}已建立起穩定的安全感，能安心地跟隨老師的引導投入活動。`,
+            (item) => `在「${item}」方面，${name}能模仿老師的動作，並在鼓勵下完成，表現相當穩定且乖巧。`,
+            (item) => `${name}能適應「${item}」的作息流程，情緒平穩，是個令人放心的小寶貝。`
+          ];
+          triangleTemplates = [
+            (item) => `面對「${item}」，${name}偶爾會尋求大人的懷抱與安撫。在學校，我會透過溫暖的肢體接觸與擁抱，給予${heShe}足夠的安全感去嘗試。`,
+            (item) => `在練習「${item}」時，${name}的小手還在努力協調中。我會握著${heShe}的手一起操作，透過手把手的感覺記憶，幫助${heShe}熟悉動作。`,
+            (item) => `關於「${item}」，${name}需要多一點時間適應。我們會用遊戲與兒歌吸引${heShe}，降低對新事物的陌生感，陪伴${heShe}慢慢跨出第一步。`
+          ];
+        } else {
+          starTemplates = [
+            (item) => `提到「${item}」，這是${name}最自信的舞台。${heShe}不僅操作熟練，更常能提出創新的點子，展現了靈活的思維與創造力。`,
+            (item) => `${name}在「${item}」的表現上游刃有餘，甚至能主動協助同儕，發揮小哥哥/小姐姐的風範，展現了良好的合作精神。`,
+            (item) => `我們欣賞${name}在進行「${item}」時的邏輯思考，${heShe}能有條理地規劃步驟並解決問題，表現令人驚艷。`,
+            (item) => `關於「${item}」，${name}展現了高度的專注力與責任感，能不受干擾地完成任務，這份堅持是未來學習的重要基石。`
+          ];
+          circleTemplates = [
+            (item) => `至於「${item}」，${name}能遵守團體規範，與同伴輪流等待或分享資源，展現了良好的自律性與社會性。`,
+            (item) => `在「${item}」的過程中，${name}能理解並執行多步驟的指令，跟上團體的節奏，表現平穩且適切。`,
+            (item) => `觀察「${item}」的表現，${name}能接納他人的意見並進行調整，展現了成熟的互動技巧。`
+          ];
+          triangleTemplates = [
+            (item) => `面對「${item}」的挑戰，${name}初期容易急躁。我會引導${heShe}深呼吸，學習用語言表達困難，而不是用情緒反應，培養解決問題的韌性。`,
+            (item) => `在進行「${item}」時，若與同儕意見不同，${name}還在學習協調。我們會陪${heShe}練習聆聽與協商，找出雙贏的方法。`,
+            (item) => `對於「${item}」的複雜步驟，${name}較易放棄。我會協助${heShe}拆解問題，引導${heShe}思考『下一步可以怎麼做』，建立自信心。`
+          ];
+        }
+
+        const validStars = parsedItems.stars.filter(i => i.trim() !== '');
+        const validCircles = parsedItems.circles.filter(i => i.trim() !== '');
+        const validTriangles = parsedItems.triangles.filter(i => i.trim() !== '');
+        const hasValidItems = validStars.length > 0 || validCircles.length > 0 || validTriangles.length > 0;
+
+        if (!hasValidItems && (star > 0 || circle > 0)) {
+          abilityAnalysis += `我們觀察到${name}在許多學習領域都展現了積極的態度。雖然無法一一列舉所有項目，但${heShe}在課堂上的參與度相當高。`;
+        } else {
+          if (validStars.length > 0) {
+            const usedIndexes = new Set();
+            const getUniqueTemplate = (list) => {
+              let idx, attempts = 0;
+              do { idx = Math.floor(Math.random() * list.length); attempts++; }
+              while (usedIndexes.has(idx) && attempts < 10);
+              usedIndexes.add(idx);
+              return list[idx];
+            };
+            abilityAnalysis += getUniqueTemplate(starTemplates)(validStars[0]);
+            if (validStars.length > 1) abilityAnalysis += `此外，${getUniqueTemplate(starTemplates)(validStars[1])}`;
+          }
+          if (validCircles.length > 0) abilityAnalysis += `\n\n${getRandomItem(circleTemplates)(validCircles[0])}`;
+          if (validTriangles.length > 0) abilityAnalysis += `\n\n不過，${getRandomItem(triangleTemplates)(validTriangles[0])} 這並不代表做不到，而是需要我們給予更多的時間與耐心。`;
+        }
+        if (!hasValidItems && star === 0 && circle === 0 && triangle === 0) {
+          abilityAnalysis += `這學期${name}在各方面的適應情形都相當不錯，我們期待在接下來的活動中，發掘更多${heShe}的潛能。`;
+        }
+
+        // --- 特質與學習區 ---
+        const allStrengths = [...selectedTags.strengthTraits, ...selectedTags.strengthAbilities];
+        let areaText = '';
+        if (learningAreaInfo.often) {
+          areaText = `，特別是在「${learningAreaInfo.often}」`;
+          if (learningAreaInfo.oftenItems) areaText += `進行「${learningAreaInfo.oftenItems}」時`;
+          else areaText += `的操作中`;
+          areaText += `，我們常能看見${heShe}專注投入的身影`;
+        }
+        let traitsText = '';
+        if (allStrengths.length > 0) {
+          traitsText = `\n\n在團體生活中${areaText}，我特別欣賞${name}的${allStrengths.join('、')}。這些特質讓${heShe}在面對學習時，總能展現出獨特的魅力。`;
+        } else if (areaText) {
+          traitsText = `\n\n在日常活動中${areaText}，展現了${heShe}對探索的熱情。`;
+        }
+
+        // --- 小故事 ---
+        let storyText = '';
+        if (anecdote) {
+          storyText = `\n\n記得在這次的主題/學習區活動中，${anecdote}這一個瞬間，讓我深深感受到${name}真實的溫度與重量，這就是${heShe}最獨特的光芒。`;
+        }
+
+        // --- 建議 ---
+        const allWeaknesses = [...selectedTags.weaknessTraits, ...selectedTags.weaknessAbilities];
+        const validTrianglesRef = parsedItems.triangles.filter(i => i.trim() !== '');
+        let areaAdvice = '';
+        if (learningAreaInfo.less) {
+          areaAdvice = `另外，我們也觀察到${name}較少進入「${learningAreaInfo.less}」，未來我們會透過同儕引導或設計有趣的活動，鼓勵${heShe}嘗試接觸，拓展更多元的學習經驗。`;
+        }
+        let triangleSuggestion = validTrianglesRef.length > 0 ? `針對上述提到的「${validTrianglesRef[0]}」` : `針對${name}較不擅長的部分`;
+        let adviceText = '';
+        if (allWeaknesses.length > 0 || validTrianglesRef.length > 0) {
+          adviceText = `\n\n${areaAdvice ? areaAdvice + ' ' : ''}至於${triangleSuggestion}以及${allWeaknesses.length > 0 ? `較為${allWeaknesses.join('、')}的特質` : '需要加加油的項目'}，建議家長在家中可以透過「小步驟鷹架」的方式引導，先將任務拆解成簡單的小目標，並在${heShe}完成時給予具體的讚美。透過親子共讀繪本或角色扮演遊戲，也能有效幫助${heShe}模擬情境，建立面對挑戰的心理韌性。`;
+        } else {
+          adviceText = `\n\n${areaAdvice ? areaAdvice + ' ' : ''}建議家長可以持續鼓勵${name}保持這份學習的熱情，並適時給予挑戰。例如在家中可以邀請${heShe}擔任小幫手，負責一些簡單的家務，或是共同規劃假日行程，這不僅能增強${heShe}的責任感，更能訓練計畫與執行的能力。`;
+        }
+
+        // --- 結尾 ---
+        const closingTemplates = [
+          `\n\n孩子的成長是一場美好的慢跑，感謝您與我們併肩同行，欣賞沿途每一處獨特的風景。`,
+          `\n\n每一顆種子都有破土而出的時刻，感謝您的信任與陪伴，讓我們能一同見證${name}成長的每一個驚喜。`,
+          `\n\n愛是孩子成長最好的養分，謝謝您成為我們最強大的後盾，讓我們一起陪伴${name}自信地邁向下一階段。`
+        ];
+
+        return intro + abilityAnalysis + traitsText + storyText + adviceText + getRandomItem(closingTemplates);
+      };
+
+      // === JSX (Task 6 待移植完整 UI) ===
+      return <div className="p-8 text-center text-stone-400">核心邏輯已就位，UI 待 Task 6 移植</div>;
+    };
+
     const rootEl = document.getElementById('root');
     if (rootEl) {
-      ReactDOM.createRoot(rootEl).render(<App />);
+      ReactDOM.createRoot(rootEl).render(<StarChildCommentGenerator />);
     }
   </script>
 </body>
