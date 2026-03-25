@@ -147,6 +147,7 @@
       const [isListening, setIsListening] = React.useState(false);
       const [showHistory, setShowHistory] = React.useState(false);
       const recognitionRef = React.useRef(null);
+      const isInitializedRef = React.useRef(false);
 
       const [childInfo, setChildInfo] = React.useState({ name: '', grade: '', gender: '' });
       const [assessmentContent, setAssessmentContent] = React.useState('');
@@ -184,6 +185,10 @@
       // === localStorage 寫入 useEffect ===
       React.useEffect(() => {
         if (!isLoaded) return;
+        if (!isInitializedRef.current) {
+          isInitializedRef.current = true;
+          return; // 第一次 isLoaded 變 true 時跳過寫入
+        }
         safeLocalStorageSet('star_child_data', {
           childInfo, assessmentContent, parsedItems, selectedTags, learningAreaInfo, anecdote, step
         });
@@ -457,6 +462,8 @@
 
         if (!hasValidItems && (star > 0 || circle > 0)) {
           abilityAnalysis += `我們觀察到${name}在許多學習領域都展現了積極的態度。雖然無法一一列舉所有項目，但${heShe}在課堂上的參與度相當高。`;
+        } else if (!hasValidItems && star === 0 && circle === 0 && triangle === 0) {
+          abilityAnalysis += `這學期${name}在各方面的適應情形都相當不錯，我們期待在接下來的活動中，發掘更多${heShe}的潛能。`;
         } else {
           if (validStars.length > 0) {
             const usedIndexes = new Set();
@@ -472,9 +479,6 @@
           }
           if (validCircles.length > 0) abilityAnalysis += `\n\n${getRandomItem(circleTemplates)(validCircles[0])}`;
           if (validTriangles.length > 0) abilityAnalysis += `\n\n不過，${getRandomItem(triangleTemplates)(validTriangles[0])} 這並不代表做不到，而是需要我們給予更多的時間與耐心。`;
-        }
-        if (!hasValidItems && star === 0 && circle === 0 && triangle === 0) {
-          abilityAnalysis += `這學期${name}在各方面的適應情形都相當不錯，我們期待在接下來的活動中，發掘更多${heShe}的潛能。`;
         }
 
         // --- 特質與學習區 ---
