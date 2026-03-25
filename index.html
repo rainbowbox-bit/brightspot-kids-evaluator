@@ -32,6 +32,31 @@
       Mic, MicOff, History, Clock, Upload, Settings, Eye, EyeOff
     } = LucideReact;
 
+    // === Toast 系統 ===
+    const useToast = () => {
+      const [toasts, setToasts] = React.useState([]);
+      const addToast = (message, type = 'success') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+      };
+      return { toasts, addToast };
+    };
+
+    const ToastContainer = ({ toasts }) => (
+      <div className="fixed top-4 right-4 z-[100] space-y-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className={`animate-toast px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 pointer-events-auto ${
+            t.type === 'success' ? 'bg-green-500' :
+            t.type === 'error'   ? 'bg-red-500' : 'bg-orange-500'
+          }`}>
+            <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ'}</span>
+            <span>{t.message}</span>
+          </div>
+        ))}
+      </div>
+    );
+
     // === localStorage 安全操作 ===
     const safeLocalStorageGet = (key, fallback) => {
       try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
@@ -161,6 +186,7 @@
       const [generatedComment, setGeneratedComment] = React.useState('');
       const [isGenerating, setIsGenerating] = React.useState(false);
       const [historyLog, setHistoryLog] = React.useState([]);
+      const { toasts, addToast } = useToast();
 
       // === localStorage 讀取 useEffect ===
       React.useEffect(() => {
@@ -302,16 +328,16 @@
                   setAssessmentContent(result.value);
                   setAnalysis(analyzeSymbols(result.value));
                 })
-                .catch(() => alert('Word 解析失敗'));
+                .catch(() => addToast('Word 解析失敗，請改用 .docx', 'error'));
             } else {
-              alert('系統元件載入中，請稍後再試！');
+              addToast('系統元件載入中，請稍後再試', 'error');
             }
           };
           reader.readAsArrayBuffer(file);
           return;
         }
         if (fileName.endsWith('.doc')) {
-          alert('不支援舊版 Word (.doc)，請使用 .docx 或文字檔。');
+          addToast('不支援 .doc，請另存為 .docx', 'error');
           return;
         }
         const reader = new FileReader();
@@ -336,8 +362,9 @@
       };
 
       const copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text);
-        alert('已複製到剪貼簿');
+        navigator.clipboard.writeText(text)
+          .then(() => addToast('已複製到剪貼簿'))
+          .catch(() => addToast('複製失敗，請手動選取文字', 'error'));
       };
 
       const toggleVoiceInput = () => {
@@ -348,7 +375,7 @@
         }
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-          alert('您的瀏覽器不支援語音輸入功能，請使用 Google Chrome 或 Edge 瀏覽器。');
+          addToast('請使用 Chrome 或 Edge 以使用語音輸入', 'error');
           return;
         }
         const recognition = new SpeechRecognition();
@@ -529,7 +556,7 @@
       };
 
       // === JSX (Task 6 待移植完整 UI) ===
-      return <div className="p-8 text-center text-stone-400">核心邏輯已就位，UI 待 Task 6 移植</div>;
+      return <div className="p-8 text-center text-stone-400"><ToastContainer toasts={toasts} />核心邏輯已就位，UI 待 Task 6 移植</div>;
     };
 
     const rootEl = document.getElementById('root');
