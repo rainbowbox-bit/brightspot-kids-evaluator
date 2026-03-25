@@ -736,22 +736,413 @@ ${anecdote || '（無）'}
         </div>
       );
 
-      // === JSX (Task 6 待移植完整 UI) ===
-      return (
-        <div className="min-h-screen bg-stone-50 font-sans text-stone-700 relative overflow-x-hidden pb-12">
-          <ToastContainer toasts={toasts} />
-          {showSettings && <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm" onClick={() => setShowSettings(false)}></div>}
-          <SettingsPanel />
-          {/* 測試按鈕，Task 6 會移除 */}
-          <div className="p-8 text-center">
-            <p className="text-stone-400 mb-4">UI 主體待 Task 6 移植</p>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold"
-            >
-              測試：開啟設定面板
-            </button>
+      // === HistoryPanel 子元件 ===
+      const HistoryPanel = () => (
+        <div className={`fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showHistory ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-stone-700 flex items-center gap-2">
+                <History className="w-5 h-5 text-orange-500" /> 近期完成紀錄
+              </h3>
+              <button onClick={() => setShowHistory(false)} className="text-stone-400 hover:text-stone-600 p-1 rounded-lg hover:bg-stone-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {historyLog.length === 0 ? (
+              <div className="text-center text-stone-400 py-10">
+                <Clock className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                <p>尚未有任何紀錄</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {historyLog.map((log) => (
+                  <div key={log.id} className="bg-stone-50 p-4 rounded-xl border border-stone-100 hover:border-orange-200 transition-all">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="font-bold text-stone-700">{log.name}</span>
+                        <span className="text-xs text-stone-400 ml-2 bg-white px-2 py-0.5 rounded-full border border-stone-100">{log.grade}</span>
+                      </div>
+                      <button onClick={() => copyToClipboard(log.comment)} className="text-stone-400 hover:text-orange-500" title="複製">
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-stone-400 mb-3 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {log.timestamp}
+                    </p>
+                    <details className="text-sm text-stone-600">
+                      <summary className="cursor-pointer hover:text-orange-600 transition-colors list-none flex items-center gap-1 font-medium select-none">
+                        查看內容 <ChevronDown className="w-3 h-3 inline" />
+                      </summary>
+                      <div className="mt-2 p-2 bg-white rounded border border-stone-100 text-xs leading-relaxed whitespace-pre-wrap">
+                        {log.comment}
+                      </div>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+      );
+
+      // === renderTagSection 輔助函式 ===
+      const renderTagSection = (title, icon, category, options, colorClass, borderColorClass, bgColorClass, textColorClass) => {
+        const libraryOptions = customTagLibrary[category] || [];
+        const uniqueLibraryOptions = libraryOptions.filter(t => !options.includes(t));
+        const allDisplayOptions = [...options, ...uniqueLibraryOptions];
+        const tempSelected = selectedTags[category].filter(t => !allDisplayOptions.includes(t));
+        return (
+          <div className="mb-6">
+            <h3 className={`flex items-center gap-2 font-bold ${textColorClass} mb-3`}>
+              {icon} {title}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {allDisplayOptions.map(tag => {
+                const isCustom = uniqueLibraryOptions.includes(tag);
+                return (
+                  <div key={tag} className="relative group/tag">
+                    <button
+                      onClick={() => toggleTag(category, tag)}
+                      className={`px-3 py-1 rounded-full text-sm border transition-all ${selectedTags[category].includes(tag) ? `${bgColorClass} ${borderColorClass} ${textColorClass} font-bold shadow-sm` : 'bg-white border-stone-200 text-stone-600 hover:border-orange-300'} ${isCustom ? 'pr-7' : ''}`}
+                    >
+                      {tag}
+                    </button>
+                    {isCustom && (
+                      <button
+                        onClick={(e) => removeCustomTagFromLibrary(e, category, tag)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-stone-400 hover:text-rose-500 hover:bg-rose-50 rounded-full opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                        title="從常用庫移除"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {tempSelected.map(tag => (
+                <div key={tag} className={`px-3 py-1 rounded-full text-sm border flex items-center gap-1 ${bgColorClass} ${borderColorClass} ${textColorClass} font-bold shadow-sm`}>
+                  {tag}
+                  <button onClick={() => setSelectedTags(prev => ({ ...prev, [category]: prev[category].filter(t => t !== tag) }))} className="hover:bg-black/10 rounded-full p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center relative">
+                <input
+                  type="text"
+                  placeholder="+ 自訂"
+                  className="px-3 py-1 rounded-full text-sm border border-stone-200 w-24 focus:w-36 transition-all outline-none focus:border-orange-400 pr-8"
+                  value={customInputs[category]}
+                  onChange={(e) => setCustomInputs({ ...customInputs, [category]: e.target.value })}
+                  onKeyDown={(e) => handleKeyDown(e, category)}
+                />
+                {customInputs[category] && (
+                  <button onClick={() => addCustomTag(category)} className="absolute right-2 text-stone-400 hover:text-orange-500">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // === 完整 5 步驟 UI ===
+      return (
+        <div className="min-h-screen bg-stone-50 font-sans text-stone-700 selection:bg-orange-100 pb-12 relative overflow-x-hidden">
+          <ToastContainer toasts={toasts} />
+          {(showSettings || showHistory) && (
+            <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm" onClick={() => { setShowSettings(false); setShowHistory(false); }}></div>
+          )}
+          <SettingsPanel />
+          <HistoryPanel />
+
+          {/* Header */}
+          <header className="bg-white pt-10 pb-8 px-6 shadow-sm border-b border-stone-100 relative">
+            <div className="max-w-3xl mx-auto text-center space-y-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-orange-700 flex items-center justify-center gap-2 mb-4">
+                <Star className="w-6 h-6 fill-orange-400 text-orange-400" />
+                看見孩子身上的星星-評語生成器
+                <Star className="w-6 h-6 fill-orange-400 text-orange-400" />
+              </h1>
+              <div className="space-y-1 text-sm md:text-base text-stone-500 italic leading-relaxed font-serif">
+                <p>AI 能描繪出完美的成長軌跡，但只有你的眼睛，能看見孩子身上發光的星星。</p>
+                <p>讓科技承載文字斟酌的繁重，好讓你騰出雙手，去擁抱孩子真實的溫暖與重量。</p>
+                <p>因為運算無法複製愛，唯有你的關懷和在乎，能讓字句擁有不可替代的溫度。</p>
+              </div>
+            </div>
+            <div className="absolute top-6 right-6 flex gap-2 items-center">
+              <span className={`hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-full font-bold ${isAiMode ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isAiMode ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
+                {isAiMode ? 'AI 模式' : '離線模式'}
+              </span>
+              <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 px-3 py-2 bg-white hover:bg-orange-50 text-stone-500 hover:text-orange-600 rounded-lg text-sm transition-colors border border-stone-200" title="Gemini AI 設定">
+                <Settings className="w-4 h-4" /><span className="hidden md:inline">設定</span>
+              </button>
+              <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 px-3 py-2 bg-white hover:bg-orange-50 text-stone-500 hover:text-orange-600 rounded-lg text-sm transition-colors border border-stone-200" title="查看歷史紀錄">
+                <History className="w-4 h-4" /><span className="hidden md:inline">紀錄</span>
+              </button>
+              <button onClick={handleReset} className="flex items-center gap-1 px-3 py-2 bg-stone-100 hover:bg-red-100 text-stone-500 hover:text-red-600 rounded-lg text-sm transition-colors border border-stone-200" title="清空目前輸入，開始下一位學生">
+                <RefreshCw className="w-4 h-4" /><span className="hidden md:inline">下一位學生</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Main */}
+          <main className="max-w-3xl mx-auto mt-8 px-4">
+            {/* 步驟指示器 */}
+            <div className="flex justify-between mb-8 relative">
+              <div className="absolute top-1/2 left-0 w-full h-1 bg-stone-200 -z-10 rounded"></div>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <div key={s} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${step >= s ? 'bg-orange-500 text-white shadow-lg scale-110' : 'bg-stone-300 text-stone-500'}`}>
+                  {s}
+                </div>
+              ))}
+            </div>
+
+            {/* Step 1：基本資料與評量匯入 */}
+            {step === 1 && (
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-stone-100 animate-fade-in">
+                <div className="flex items-center gap-2 mb-6 text-xl font-bold text-stone-800 border-l-4 border-orange-500 pl-3">
+                  <User className="w-6 h-6 text-orange-500" />
+                  第一步：孩子基本資料與評量匯入
+                </div>
+                <div className="grid md:grid-cols-2 gap-6 mb-8 p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-sm font-bold text-stone-600 mb-2">孩子姓名</label>
+                    <input type="text" value={childInfo.name} onChange={(e) => setChildInfo({ ...childInfo, name: e.target.value })} placeholder="請輸入孩子姓名" className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-stone-600 mb-2">年段</label>
+                    <select value={childInfo.grade} onChange={(e) => setChildInfo({ ...childInfo, grade: e.target.value })} className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none bg-white">
+                      <option value="">請選擇年段</option>
+                      {gradeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-stone-600 mb-2">性別</label>
+                    <div className="flex gap-4">
+                      <label className={`flex-1 p-2 border rounded-lg cursor-pointer text-center transition-all ${childInfo.gender === 'male' ? 'bg-orange-100 border-orange-400 text-orange-800' : 'bg-white border-stone-200'}`}>
+                        <input type="radio" name="gender" value="male" checked={childInfo.gender === 'male'} onChange={() => setChildInfo({ ...childInfo, gender: 'male' })} className="hidden" />小男生
+                      </label>
+                      <label className={`flex-1 p-2 border rounded-lg cursor-pointer text-center transition-all ${childInfo.gender === 'female' ? 'bg-orange-100 border-orange-400 text-orange-800' : 'bg-white border-stone-200'}`}>
+                        <input type="radio" name="gender" value="female" checked={childInfo.gender === 'female'} onChange={() => setChildInfo({ ...childInfo, gender: 'female' })} className="hidden" />小女生
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 text-lg font-bold text-stone-700"><Upload className="w-5 h-5 text-stone-400" />匯入評量內容</div>
+                  <div className={`p-6 border-2 border-dashed rounded-xl text-center transition-all cursor-pointer relative group ${isDragging ? 'border-orange-400 bg-orange-50 scale-105 shadow-md' : 'border-stone-300 bg-stone-50 hover:bg-orange-50'}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                    <input type="file" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" accept=".txt,.doc,.docx" />
+                    <div className="pointer-events-none">
+                      <FileText className={`w-10 h-10 mx-auto mb-2 transition-colors ${isDragging ? 'text-orange-500' : 'text-stone-400 group-hover:text-orange-500'}`} />
+                      <p className={`font-medium transition-colors ${isDragging ? 'text-orange-600 font-bold' : 'text-stone-600'}`}>{isDragging ? '放開以開始解析檔案' : '點擊或拖曳上傳總結性評量檔案 (.docx)'}</p>
+                      <p className="text-xs text-orange-500 mt-2 font-bold flex items-center justify-center gap-1"><AlertCircle className="w-3 h-3" /> 支援 Word (.docx) 與文字檔 (.txt)</p>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute top-0 left-0 bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-br-lg z-10">或直接貼上內容</div>
+                    <textarea className="w-full h-48 p-4 pt-8 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-400 outline-none resize-none text-stone-600" placeholder="請貼上含有評量等級符號的文字內容...&#10;例如：動作發展：一級棒(☆) 生活自理：加加油(△)..." value={assessmentContent} onChange={handleContentChange}></textarea>
+                  </div>
+                  {assessmentContent && (
+                    <div className="bg-stone-50 p-4 rounded-xl flex justify-around items-center">
+                      <div className="text-center"><span className="text-2xl font-bold text-orange-500 block">☆ {analysis.star}</span><span className="text-xs text-stone-500">一級棒</span></div>
+                      <div className="text-center"><span className="text-2xl font-bold text-green-500 block">○ {analysis.circle}</span><span className="text-xs text-stone-500">很不錯</span></div>
+                      <div className="text-center"><span className="text-2xl font-bold text-rose-400 block">△ {analysis.triangle}</span><span className="text-xs text-stone-500">加加油</span></div>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-end gap-2">
+                    {(!childInfo.name || !childInfo.grade || !childInfo.gender || !assessmentContent) && (
+                      <p className="text-xs text-red-400">
+                        請填寫：{[!childInfo.name && '姓名', !childInfo.grade && '年段', !childInfo.gender && '性別', !assessmentContent && '評量內容'].filter(Boolean).join('、')}
+                      </p>
+                    )}
+                    <button onClick={handleAnalyzeAndNext} disabled={!assessmentContent || !childInfo.name || !childInfo.grade || !childInfo.gender} className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold shadow-md transition-all ${assessmentContent && childInfo.name && childInfo.grade && childInfo.gender ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-stone-300 text-stone-100 cursor-not-allowed'}`}>
+                      下一步：解析微調 <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2：解析結果微調 */}
+            {step === 2 && (
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-stone-100 animate-fade-in">
+                <div className="flex items-center gap-2 mb-6 text-xl font-bold text-stone-800 border-l-4 border-orange-500 pl-3">
+                  <List className="w-6 h-6 text-orange-500" />
+                  第二步：解析結果微調
+                </div>
+                <div className="bg-orange-50/50 p-4 rounded-xl mb-6 text-sm text-stone-600 border border-orange-100">
+                  💡 系統自動抓取了以下內容，請您檢視是否有誤。若有抓錯的項目，請直接<b>點擊修改</b>或<b>刪除</b>；若有遺漏，也可以<b>手動新增</b>。確認無誤後再進行下一步。
+                </div>
+                <div className="grid md:grid-cols-3 gap-6">
+                  {/* 一級棒 */}
+                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
+                    <h3 className="font-bold text-orange-600 mb-4 flex items-center gap-2 border-b border-orange-200 pb-2">
+                      <Star className="w-4 h-4 fill-orange-500" /> 一級棒 (☆)
+                    </h3>
+                    <div className="space-y-2">
+                      {parsedItems.stars.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => updateParsedItem('stars', idx, e.target.value)} className="w-full p-2 bg-white border border-orange-200 rounded text-sm focus:outline-none focus:border-orange-400" />
+                          <button onClick={() => removeParsedItem('stars', idx)} className="text-stone-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => addParsedItem('stars')} className="w-full py-2 border-2 border-dashed border-orange-200 text-orange-400 rounded hover:bg-orange-100 transition-colors text-sm font-bold flex items-center justify-center gap-1">+ 新增項目</button>
+                    </div>
+                  </div>
+                  {/* 很不錯 */}
+                  <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+                    <h3 className="font-bold text-green-600 mb-4 flex items-center gap-2 border-b border-stone-200 pb-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-green-500"></div> 很不錯 (○)
+                    </h3>
+                    <div className="space-y-2">
+                      {parsedItems.circles.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => updateParsedItem('circles', idx, e.target.value)} className="w-full p-2 bg-white border border-stone-200 rounded text-sm focus:outline-none focus:border-green-400" />
+                          <button onClick={() => removeParsedItem('circles', idx)} className="text-stone-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => addParsedItem('circles')} className="w-full py-2 border-2 border-dashed border-stone-200 text-stone-400 rounded hover:bg-stone-100 transition-colors text-sm font-bold flex items-center justify-center gap-1">+ 新增項目</button>
+                    </div>
+                  </div>
+                  {/* 加加油 */}
+                  <div className="bg-rose-50 rounded-xl p-4 border border-rose-100">
+                    <h3 className="font-bold text-rose-500 mb-4 flex items-center gap-2 border-b border-rose-200 pb-2">
+                      <AlertTriangle className="w-4 h-4" /> 加加油 (△)
+                    </h3>
+                    <div className="space-y-2">
+                      {parsedItems.triangles.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => updateParsedItem('triangles', idx, e.target.value)} className="w-full p-2 bg-white border border-rose-200 rounded text-sm focus:outline-none focus:border-rose-400" />
+                          <button onClick={() => removeParsedItem('triangles', idx)} className="text-stone-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => addParsedItem('triangles')} className="w-full py-2 border-2 border-dashed border-rose-200 text-rose-400 rounded hover:bg-rose-100 transition-colors text-sm font-bold flex items-center justify-center gap-1">+ 新增項目</button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between mt-8">
+                  <button onClick={() => setStep(1)} className="text-stone-400 hover:text-stone-600">上一步</button>
+                  <button onClick={() => setStep(3)} className="flex items-center gap-2 px-6 py-3 rounded-full bg-orange-500 text-white font-bold shadow-md hover:bg-orange-600 transition-all">確認無誤，下一步 <ChevronRight className="w-4 h-4" /></button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3：特質、能力與興趣 */}
+            {step === 3 && (
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-stone-100">
+                <div className="flex items-center gap-2 mb-6 text-xl font-bold text-stone-800 border-l-4 border-orange-500 pl-3">
+                  <Check className="w-6 h-6 text-orange-500" />
+                  第三步：特質、能力與興趣
+                </div>
+                {/* 學習區觀察 */}
+                <div className="mb-8 p-6 bg-yellow-50 rounded-xl border border-yellow-100 space-y-4">
+                  <h3 className="flex items-center gap-2 font-bold text-yellow-800 text-lg border-b border-yellow-200 pb-2"><School className="w-5 h-5" /> 學習區觀察</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-sm font-bold text-yellow-900 mb-1">常去的學習區</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {commonLearningAreas.map(area => (
+                          <button key={area} onClick={() => toggleLearningArea('often', area)} className={`px-3 py-1 text-xs rounded-full border transition-all ${learningAreaInfo.often.includes(area) ? 'bg-yellow-200 border-yellow-400 text-yellow-800 font-bold' : 'bg-white border-yellow-100 text-yellow-600 hover:bg-yellow-50'}`}>{area}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="可手動輸入其他區域..." className="w-full p-2 border border-yellow-200 rounded-lg focus:ring-2 focus:ring-yellow-300 outline-none" value={learningAreaInfo.often} onChange={(e) => setLearningAreaInfo({ ...learningAreaInfo, often: e.target.value })} />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-sm font-bold text-stone-600 mb-1">不常去的學習區</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {commonLearningAreas.map(area => (
+                          <button key={area} onClick={() => toggleLearningArea('less', area)} className={`px-3 py-1 text-xs rounded-full border transition-all ${learningAreaInfo.less.includes(area) ? 'bg-stone-300 border-stone-400 text-stone-700 font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-100'}`}>{area}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="可手動輸入..." className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 outline-none" value={learningAreaInfo.less} onChange={(e) => setLearningAreaInfo({ ...learningAreaInfo, less: e.target.value })} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-bold text-yellow-900 mb-1">常在這個學習區裡操作的項目</label>
+                      <input type="text" placeholder="例如：搭建城堡、閱讀繪本..." className="w-full p-2 border border-yellow-200 rounded-lg focus:ring-2 focus:ring-yellow-300 outline-none" value={learningAreaInfo.oftenItems} onChange={(e) => setLearningAreaInfo({ ...learningAreaInfo, oftenItems: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+                {/* 標籤選擇 */}
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    {renderTagSection('優勢特質', <Star className="w-4 h-4" />, 'strengthTraits', tagOptions.strengthTraits, 'bg-orange-100', 'border-orange-400', 'bg-orange-100', 'text-orange-800')}
+                    {renderTagSection('優勢能力', <Sparkles className="w-4 h-4" />, 'strengthAbilities', tagOptions.strengthAbilities, 'bg-orange-100', 'border-orange-400', 'bg-orange-100', 'text-orange-800')}
+                  </div>
+                  <div className="space-y-6">
+                    {renderTagSection('需引導特質', <Heart className="w-4 h-4" />, 'weaknessTraits', tagOptions.weaknessTraits, 'bg-stone-100', 'border-stone-400', 'bg-stone-100', 'text-stone-700')}
+                    {renderTagSection('需加強能力', <AlertTriangle className="w-4 h-4" />, 'weaknessAbilities', tagOptions.weaknessAbilities, 'bg-stone-100', 'border-stone-400', 'bg-stone-100', 'text-stone-700')}
+                  </div>
+                </div>
+                <div className="flex justify-between mt-8">
+                  <button onClick={() => setStep(2)} className="text-stone-400 hover:text-stone-600">上一步</button>
+                  <button onClick={() => setStep(4)} className="flex items-center gap-2 px-6 py-3 rounded-full bg-orange-500 text-white font-bold shadow-md hover:bg-orange-600 transition-all">下一步：主題/學習區小故事 <ChevronRight className="w-4 h-4" /></button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4：小故事 */}
+            {step === 4 && (
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-stone-100">
+                <div className="flex items-center gap-2 mb-6 text-xl font-bold text-stone-800 border-l-4 border-orange-500 pl-3">
+                  <PenTool className="w-6 h-6 text-orange-500" />
+                  第四步：主題/學習區裡的小故事
+                </div>
+                <div className="bg-orange-50 p-4 rounded-xl mb-6 text-sm text-orange-800 flex gap-2">
+                  <Sparkles className="w-5 h-5 flex-shrink-0" />
+                  <p>請描述一個具體的主題活動或學習區場景。例如：「在搭建積木城堡時，{getPronoun()}主動邀請害羞的同學一起參與，並分配工作...」</p>
+                </div>
+                <div className="relative">
+                  <textarea className="w-full h-48 p-4 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-400 outline-none resize-none text-stone-600 leading-relaxed pr-12" placeholder={`請輸入發生在${childInfo.name || '孩子'}身上的真實小故事...`} value={anecdote} onChange={(e) => setAnecdote(e.target.value)}></textarea>
+                  <button onClick={toggleVoiceInput} className={`absolute bottom-4 right-4 p-3 rounded-full shadow-md transition-all duration-300 flex items-center justify-center ${isListening ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' : 'bg-white text-stone-500 border border-stone-200 hover:bg-orange-50 hover:text-orange-500'}`} title={isListening ? '點擊停止錄音' : '點擊開始語音輸入'}>
+                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+                </div>
+                <div className="flex justify-between mt-8">
+                  <button onClick={() => setStep(3)} className="text-stone-400 hover:text-stone-600">上一步</button>
+                  <button onClick={generateComment} disabled={isGenerating} className="flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100">
+                    {isGenerating
+                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> {isAiMode ? 'AI 思考中...' : '運算愛與溫度中...'}</>
+                      : <><Sparkles className="w-4 h-4" /> {isAiMode ? '用 AI 生成評語' : '生成評語（離線模板）'}</>
+                    }
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 5：生成結果 */}
+            {step === 5 && (
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-stone-100 animate-fade-in-up">
+                <div className="flex items-center justify-between mb-6 border-b border-stone-100 pb-4">
+                  <div className="flex items-center gap-2 text-xl font-bold text-stone-800 border-l-4 border-orange-500 pl-3">
+                    <Heart className="w-6 h-6 text-orange-500" />
+                    生成結果：總結性評語
+                  </div>
+                  <button onClick={() => setStep(4)} className="p-2 text-stone-400 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-colors" title="返回修改">
+                    <RefreshCw className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="relative">
+                  <textarea className="w-full h-96 p-6 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-400 outline-none resize-none text-stone-700 leading-loose text-lg font-serif" value={generatedComment} onChange={(e) => setGeneratedComment(e.target.value)}></textarea>
+                  <div className="absolute bottom-4 right-4">
+                    <button onClick={() => copyToClipboard(generatedComment)} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 rounded-lg shadow-sm hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all text-sm font-bold text-stone-600">
+                      <Copy className="w-4 h-4" /> 複製全文
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-6 bg-orange-50 rounded-lg p-4 text-sm text-orange-800">
+                  <p className="font-bold mb-1">袋鼠老師的叮嚀：</p>
+                  <p>AI 生成的文字提供了架構與修辭，但請務必再次閱讀並根據您對{childInfo.name || '孩子'}的實際觀察進行微調，加入更多生活細節，讓這份評語成為獨一無二的禮物。</p>
+                </div>
+              </div>
+            )}
+          </main>
+
+          <footer className="mt-16 py-6 text-center text-stone-400 text-xs border-t border-stone-100">
+            <p>Designed by 袋鼠老師陪你幼教有愛</p>
+          </footer>
         </div>
       );
     };
