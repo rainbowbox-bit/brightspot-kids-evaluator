@@ -561,6 +561,92 @@
         return intro + abilityAnalysis + traitsText + storyText + adviceText + getRandomItem(closingTemplates);
       };
 
+      const buildGeminiPrompt = () => {
+        const name = getName(childInfo.name);
+        const heShe = getPronoun();
+        const grade = childInfo.grade;
+        const isYounger = ['幼幼班', '小班'].includes(grade);
+
+        return `你是一位富有愛心且文筆優美的幼兒園老師，請依據以下資料，為家長撰寫一段約 400-500 字的繁體中文總結性評語。
+
+## 孩子資料
+- 姓名（稱呼）：${name}
+- 代名詞：${heShe}
+- 年段：${grade}（${isYounger ? '較小年齡，描述以生活自理、感官探索為主' : '中大班，可強調邏輯、合作、創意'}）
+
+## 評量結果
+- ☆ 一級棒項目（${analysis.star} 項）：${parsedItems.stars.filter(i => i.trim()).join('、') || '無'}
+- ○ 很不錯項目（${analysis.circle} 項）：${parsedItems.circles.filter(i => i.trim()).join('、') || '無'}
+- △ 加加油項目（${analysis.triangle} 項）：${parsedItems.triangles.filter(i => i.trim()).join('、') || '無'}
+
+## 特質與能力
+- 優勢：${[...selectedTags.strengthTraits, ...selectedTags.strengthAbilities].join('、') || '未填寫'}
+- 需引導：${[...selectedTags.weaknessTraits, ...selectedTags.weaknessAbilities].join('、') || '未填寫'}
+
+## 學習區觀察
+- 常去：${learningAreaInfo.often || '未填寫'}，操作項目：${learningAreaInfo.oftenItems || '未填寫'}
+- 較少去：${learningAreaInfo.less || '未填寫'}
+
+## 印象深刻的小故事
+${anecdote || '（無）'}
+
+## 撰寫要求
+1. 語氣溫暖、正向，充滿對孩子的愛與期待
+2. 段落分明：開場 → 能力分析 → 特質描述 → 小故事（若有）→ 給家長的建議 → 溫馨結尾
+3. 對於△項目，以「需要更多時間與陪伴」的正向框架描述，並給予具體的家庭引導建議
+4. 全文使用繁體中文，語句流暢自然
+5. 不要使用 Markdown 格式，輸出純文字段落`;
+      };
+
+      const generateComment = async () => {
+        setIsGenerating(true);
+
+        if (isAiMode) {
+          try {
+            const prompt = buildGeminiPrompt();
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { temperature: 0.85, maxOutputTokens: 1024 }
+                })
+              }
+            );
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error('回應格式異常，請稍後再試');
+            setGeneratedComment(text);
+            saveToHistory(text);
+            setIsGenerating(false);
+            setStep(5);
+            return;
+          } catch (err) {
+            addToast(`AI 生成失敗（${err.message}），已切換為離線模板`, 'error');
+          }
+        }
+
+        // 離線模板降級
+        setTimeout(() => {
+          try {
+            const comment = generateTemplateComment();
+            setGeneratedComment(comment);
+            saveToHistory(comment);
+            setStep(5);
+          } catch (err) {
+            addToast('評語生成失敗，請重試', 'error');
+          } finally {
+            setIsGenerating(false);
+          }
+        }, 1200);
+      };
+
       // === SettingsPanel 子元件（定義在元件函式體內以存取父元件 state） ===
       const SettingsPanel = () => (
         <div className={`fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showSettings ? 'translate-x-0' : 'translate-x-full'}`}>
