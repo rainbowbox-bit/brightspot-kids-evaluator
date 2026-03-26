@@ -10,6 +10,25 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script>
+    // Babel: 使用 classic runtime，讓 JSX 編譯為 React.createElement() 而非 jsx()
+    Babel.registerPreset('classic-react', {
+      presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+    });
+    // lucide-react UMD 需要 lowercase "react" 全域變數 + jsx-runtime shim
+    window.react = window.React;
+    window["react/jsx-runtime"] = {
+      jsx: function(type, props, key) {
+        if (key !== undefined) { props = Object.assign({}, props, { key: key }); }
+        return React.createElement(type, props);
+      },
+      jsxs: function(type, props, key) {
+        if (key !== undefined) { props = Object.assign({}, props, { key: key }); }
+        return React.createElement(type, props);
+      },
+      Fragment: React.Fragment
+    };
+  </script>
   <script src="https://unpkg.com/lucide-react@0.378.0/dist/umd/lucide-react.js"></script>
   <style>
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -23,7 +42,7 @@
 <body class="bg-stone-50">
   <div id="root"></div>
   <noscript><div style="padding:2rem;text-align:center;color:#78716c;">此應用需要啟用 JavaScript 才能執行。</div></noscript>
-  <script type="text/babel" data-presets="react,env">
+  <script type="text/babel" data-presets="classic-react,env">
     // === Lucide 圖示解構 ===
     const {
       Star, Heart, AlertTriangle, FileText, Check, PenTool, Edit3,
