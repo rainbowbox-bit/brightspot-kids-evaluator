@@ -8,7 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://unpkg.com/lucide-react@0.378.0/dist/umd/lucide-react.js"></script>
   <style>
@@ -23,7 +23,7 @@
 <body class="bg-stone-50">
   <div id="root"></div>
   <noscript><div style="padding:2rem;text-align:center;color:#78716c;">此應用需要啟用 JavaScript 才能執行。</div></noscript>
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react,env">
     // === Lucide 圖示解構 ===
     const {
       Star, Heart, AlertTriangle, FileText, Check, PenTool, Edit3,
