@@ -23,7 +23,7 @@
 3. 左側選單點選「Get API Key」→「Create API Key」
 4. 複製 Key，貼入應用程式右上角「設定」即可
 
-> 💡 Gemini 1.5 Flash 免費額度：每天 1,500 次請求，完全免費，不需綁定信用卡。
+> 💡 建議在 Google AI Studio 建立最新可用的 Gemini API Key；系統會自動嘗試可用模型（2.5/2.0/1.5 Flash）。
 
 ## 技術架構
 
@@ -33,7 +33,7 @@
 - Tailwind CSS（CDN）
 - Lucide React（圖示）
 - Mammoth.js（Word 檔解析）
-- Gemini 1.5 Flash API（AI 生成）
+- Gemini API（自動 fallback 可用模型）
 
 ---
 

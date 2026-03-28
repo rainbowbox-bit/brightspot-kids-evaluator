@@ -617,41 +617,99 @@ ${anecdote || '（無）'}
 5. 不要使用 Markdown 格式，輸出純文字段落`;
       };
 
+      const GEMINI_MODEL_CANDIDATES = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash'
+      ];
+
+      const parseGeminiErrorMessage = (status, errorMessage) => {
+        const msg = String(errorMessage || '');
+        if (status === 401 || /API key not valid|invalid api key/i.test(msg)) {
+          return 'API 金鑰無效，請確認貼上的 Key 是否正確。';
+        }
+        if (status === 403 || /permission|forbidden|not have permission/i.test(msg)) {
+          return '此 API 金鑰無法存取可用模型，請至 Google AI Studio 重新申請金鑰。';
+        }
+        if (status === 429 || /quota|rate limit|resource has been exhausted/i.test(msg)) {
+          return 'API 配額已達上限，請稍後再試或檢查配額。';
+        }
+        if (status >= 500) {
+          return 'Gemini 服務暫時不穩定，請稍後再試。';
+        }
+        return msg || `HTTP ${status}`;
+      };
+
+      const callGeminiWithFallback = async (apiKey, prompt) => {
+        const modelCandidates = [...GEMINI_MODEL_CANDIDATES];
+        const tried = [];
+        let lastStatus = 0;
+        let lastErrorMessage = '';
+
+        for (const model of modelCandidates) {
+          tried.push(model);
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.85, maxOutputTokens: 1024 }
+              })
+            }
+          );
+
+          if (res.ok) {
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (text) {
+              safeLocalStorageSet('gemini_last_model', model);
+              return text;
+            }
+            lastStatus = 502;
+            lastErrorMessage = 'EMPTY_RESPONSE';
+            continue;
+          }
+
+          const errData = await res.json().catch(() => ({}));
+          lastStatus = res.status;
+          lastErrorMessage = errData?.error?.message || `HTTP ${res.status}`;
+
+          const canTryNextModel =
+            res.status === 400 ||
+            res.status === 403 ||
+            res.status === 404 ||
+            /not found|not supported|permission|forbidden|access/i.test(lastErrorMessage);
+
+          if (!canTryNextModel) {
+            break;
+          }
+        }
+
+        const triedText = tried.length ? `（已嘗試：${tried.join(', ')}）` : '';
+        throw new Error(`${parseGeminiErrorMessage(lastStatus, lastErrorMessage)}${triedText}`);
+      };
+
       const generateComment = async () => {
         setIsGenerating(true);
 
         if (isAiMode) {
           try {
             const prompt = buildGeminiPrompt();
-            const res = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { temperature: 0.85, maxOutputTokens: 1024 }
-                })
-              }
-            );
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData?.error?.message || `HTTP ${res.status}`);
-            }
-            const data = await res.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error('回應格式異常，請稍後再試');
+            const text = await callGeminiWithFallback(apiKey, prompt);
             setGeneratedComment(text);
             saveToHistory(text);
             setIsGenerating(false);
             setStep(5);
             return;
           } catch (err) {
-            addToast(`AI 生成失敗（${err.message}），已切換為離線模板`, 'error');
+            addToast(`AI 生成失敗：${err.message}，已切換為範本模式`, 'error');
           }
         }
 
-        // 離線模板降級
+        // 備援範本模式
         setTimeout(() => {
           try {
             const comment = generateTemplateComment();
@@ -659,13 +717,12 @@ ${anecdote || '（無）'}
             saveToHistory(comment);
             setStep(5);
           } catch (err) {
-            addToast('評語生成失敗，請重試', 'error');
+            addToast('生成失敗，請稍後重試', 'error');
           } finally {
             setIsGenerating(false);
           }
         }, 1200);
       };
-
       // === SettingsPanel 子元件（定義在元件函式體內以存取父元件 state） ===
       const SettingsPanel = () => (
         <div className={`fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showSettings ? 'translate-x-0' : 'translate-x-full'}`}>
