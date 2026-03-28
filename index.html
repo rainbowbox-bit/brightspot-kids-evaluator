@@ -725,7 +725,7 @@ ${anecdote || '（無）'}
       };
       // === SettingsPanel 子元件（定義在元件函式體內以存取父元件 state） ===
       const SettingsPanel = () => (
-        <div className={`fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showSettings ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className={`fixed inset-y-0 right-0 w-full sm:w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showSettings ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
@@ -814,7 +814,7 @@ ${anecdote || '（無）'}
 
       // === HistoryPanel 子元件 ===
       const HistoryPanel = () => (
-        <div className={`fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showHistory ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className={`fixed inset-y-0 right-0 w-full sm:w-80 bg-white shadow-2xl transform transition-transform duration-300 z-50 overflow-y-auto border-l border-stone-100 ${showHistory ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-stone-700 flex items-center gap-2">
@@ -934,7 +934,7 @@ ${anecdote || '（無）'}
           <HistoryPanel />
 
           {/* Header */}
-          <header className="bg-white pt-10 pb-8 px-6 shadow-sm border-b border-stone-100 relative">
+          <header className="bg-white pt-8 pb-6 px-4 sm:px-6 shadow-sm border-b border-stone-100">
             <div className="max-w-3xl mx-auto text-center space-y-3">
               <h1 className="text-2xl md:text-3xl font-bold text-orange-700 flex items-center justify-center gap-2 mb-4">
                 <Star className="w-6 h-6 fill-orange-400 text-orange-400" />
@@ -947,30 +947,30 @@ ${anecdote || '（無）'}
                 <p>因為運算無法複製愛，唯有你的關懷和在乎，能讓字句擁有不可替代的溫度。</p>
               </div>
             </div>
-            <div className="absolute top-6 right-6 flex gap-2 items-center">
-              <span className={`hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-full font-bold ${isAiMode ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+            <div className="max-w-3xl mx-auto mt-4 flex flex-wrap items-center justify-center sm:justify-end gap-2">
+              <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-bold ${isAiMode ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isAiMode ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
                 {isAiMode ? 'AI 模式' : '離線模式'}
               </span>
               <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 px-3 py-2 bg-white hover:bg-orange-50 text-stone-500 hover:text-orange-600 rounded-lg text-sm transition-colors border border-stone-200" title="Gemini AI 設定">
-                <Settings className="w-4 h-4" /><span className="hidden md:inline">設定</span>
+                <Settings className="w-4 h-4" /><span>設定</span>
               </button>
               <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 px-3 py-2 bg-white hover:bg-orange-50 text-stone-500 hover:text-orange-600 rounded-lg text-sm transition-colors border border-stone-200" title="查看歷史紀錄">
-                <History className="w-4 h-4" /><span className="hidden md:inline">紀錄</span>
+                <History className="w-4 h-4" /><span>紀錄</span>
               </button>
               <button onClick={handleReset} className="flex items-center gap-1 px-3 py-2 bg-stone-100 hover:bg-red-100 text-stone-500 hover:text-red-600 rounded-lg text-sm transition-colors border border-stone-200" title="清空目前輸入，開始下一位學生">
-                <RefreshCw className="w-4 h-4" /><span className="hidden md:inline">下一位學生</span>
+                <RefreshCw className="w-4 h-4" /><span>下一位學生</span>
               </button>
             </div>
           </header>
 
           {/* Main */}
-          <main className="max-w-3xl mx-auto mt-8 px-4">
+          <main className="max-w-3xl mx-auto mt-6 sm:mt-8 px-3 sm:px-4">
             {/* 步驟指示器 */}
-            <div className="flex justify-between mb-8 relative">
-              <div className="absolute top-1/2 left-0 w-full h-1 bg-stone-200 -z-10 rounded"></div>
+            <div className="grid grid-cols-5 gap-2 sm:gap-4 mb-6 sm:mb-8 relative max-w-xl mx-auto">
+              <div className="hidden sm:block absolute top-1/2 left-0 w-full h-1 bg-stone-200 -z-10 rounded"></div>
               {[1, 2, 3, 4, 5].map((s) => (
-                <div key={s} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${step >= s ? 'bg-orange-500 text-white shadow-lg scale-110' : 'bg-stone-300 text-stone-500'}`}>
+                <div key={s} className={`w-10 h-10 sm:w-11 sm:h-11 mx-auto rounded-full flex items-center justify-center font-bold transition-all duration-300 ${step >= s ? 'bg-orange-500 text-white shadow-lg sm:scale-110' : 'bg-stone-300 text-stone-500'}`}>
                   {s}
                 </div>
               ))}
